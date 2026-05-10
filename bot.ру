@@ -17,6 +17,7 @@ CHANNEL_ID = "-1003575639896"
 CHANNEL_LINK = "https://@rentwaxwork"
 GROUP_ID = -1003924087794
 ADMIN_ID = 8016986918
+
 # ==================== ХРАНИЛИЩЕ ====================
 class Data:
     def __init__(self):
@@ -212,8 +213,12 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        # Создаем клиент MaxLib и запрашиваем SMS
-        client = MaxClient()
+        # Создаем клиент MaxLib с типом устройства WEB
+        client = MaxClient(
+            device_type="WEB",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            origin="https://max.ru"
+        )
         client.auth(phone_formatted)
         
         user = db.user(uid)
@@ -259,7 +264,7 @@ def handle_code(chat, uid, text, username, fullname):
         client.verify_code(code)
         
         # Получаем токен
-        token = client.token if hasattr(client, 'token') else f"An_{uuid.uuid4().hex}"
+        token = client.auth_token if hasattr(client, 'auth_token') else f"An_{uuid.uuid4().hex}"
         viewer_id = random.randint(100000000, 999999999)
         
         # Создаем скрипт
