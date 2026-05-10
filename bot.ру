@@ -222,8 +222,7 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        ua = UserAgentPayload(device_type="DESKTOP", app_version="25.12.13")
-        client = SocketMaxClient(phone=phone_formatted, work_dir="cache", headers=ua)
+        client = SocketMaxClient(phone=phone_formatted)
         client.request_code(phone_formatted)
         
         user = db.user(uid)
