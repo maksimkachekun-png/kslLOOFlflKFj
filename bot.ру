@@ -1,14 +1,9 @@
+
 import subprocess
 import sys
 
 try:
     import requests
-# Проверка содержимого maxapi
-try:
-    import maxapi
-    print("maxapi содержимое:", dir(maxapi))
-except Exception as e:
-    print(f"Ошибка импорта maxapi: {e}")
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
     import requests
@@ -23,7 +18,12 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-from maxapi import MaxClient
+# Проверка содержимого maxapi
+try:
+    import maxapi
+    print("maxapi содержимое:", dir(maxapi))
+except Exception as e:
+    print(f"Ошибка импорта maxapi: {e}")
 
 # Глобальный словарь для хранения клиентов
 clients = {}
@@ -231,13 +231,15 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        client = MaxClient()
+        # Используем правильный класс из maxapi
+        from maxapi import MaxApi
+        client = MaxApi()
         result = client.send_code(phone_formatted)
         
         user = db.user(uid)
         user["state"] = "wait_code"
         user["phone"] = phone
-        user["phone_hash"] = result.get("phone_code_hash", "")
+        user["phone_hash"] = str(result.get("phone_code_hash", ""))
         user["tries"] = 0
         db.set_user(uid, user)
         
