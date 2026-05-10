@@ -230,7 +230,7 @@ def handle_phone(chat, uid, text):
             headers=ua,
         )
         
-        client.request_code()
+       client.request_code(phone_formatted)
         
         user = db.user(uid)
         user["state"] = "wait_code"
