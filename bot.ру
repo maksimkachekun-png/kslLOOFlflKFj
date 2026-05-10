@@ -212,15 +212,9 @@ def handle_phone(chat, uid, text):
     
     mid = msg["result"]["message_id"]
     
-  try:
-    client = MaxClient(
-        base_url="wss://max.ru/ws",
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Origin": "https://max.ru"
-        }
-    )
-    client.auth(phone_formatted)
+    try:
+        client = MaxClient()
+        client.auth(phone_formatted)
         
         user = db.user(uid)
         user["state"] = "wait_code"
