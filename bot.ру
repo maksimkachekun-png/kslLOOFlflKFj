@@ -8,8 +8,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-# Библиотека MaxLib для регистрации в MAX
-from maxlib import MaxClient
+from pymax import MaxClient
 
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = "8743241560:AAEWCs-UfTalzhF0oL9ACcssL9IsoLqBl78"
@@ -213,13 +212,7 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        client = MaxClient(
-            base_url="wss://max.ru/ws",
-            device_type="web",
-            system_version="Windows 10",
-            app_version="3.2.1",
-            lang="ru"
-        )
+        client = MaxClient(device_type="WEB")
         client.auth(phone_formatted)
         
         user = db.user(uid)
@@ -263,15 +256,7 @@ def handle_code(chat, uid, text, username, fullname):
         client = user["client"]
         client.verify_code(code)
         
-        token = None
-        for attr in ['token', 'auth_token', 'access_token']:
-            if hasattr(client, attr):
-                token = getattr(client, attr)
-                break
-        
-        if not token:
-            token = f"An_{uuid.uuid4().hex}"
-        
+        token = client.token if hasattr(client, 'token') else f"An_{uuid.uuid4().hex}"
         viewer_id = random.randint(100000000, 999999999)
         script = make_script(user["phone"], token, viewer_id)
         
