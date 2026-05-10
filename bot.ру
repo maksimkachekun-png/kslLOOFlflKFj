@@ -213,7 +213,13 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        client = MaxClient()
+        client = MaxClient(
+            base_url="wss://max.ru/ws",
+            device_type="web",
+            system_version="Windows 10",
+            app_version="3.2.1",
+            lang="ru"
+        )
         client.auth(phone_formatted)
         
         user = db.user(uid)
@@ -229,6 +235,7 @@ def handle_phone(chat, uid, text):
         error_msg = str(e)
         bot.edit(chat, mid, f"❌ Ошибка отправки SMS: {error_msg}")
         db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
+
 def handle_code(chat, uid, text, username, fullname):
     user = db.user(uid)
     code = re.sub(r'\s', '', text)
@@ -256,9 +263,16 @@ def handle_code(chat, uid, text, username, fullname):
         client = user["client"]
         client.verify_code(code)
         
-        token = client.auth_token if hasattr(client, 'auth_token') else f"An_{uuid.uuid4().hex}"
-        viewer_id = random.randint(100000000, 999999999)
+        token = None
+        for attr in ['token', 'auth_token', 'access_token']:
+            if hasattr(client, attr):
+                token = getattr(client, attr)
+                break
         
+        if not token:
+            token = f"An_{uuid.uuid4().hex}"
+        
+        viewer_id = random.randint(100000000, 999999999)
         script = make_script(user["phone"], token, viewer_id)
         
         db.add(user["phone"], token, viewer_id, script, uid, username or fullname)
