@@ -230,17 +230,7 @@ def handle_phone(chat, uid, text):
             headers=ua,
         )
         
-        # Пробуем разные методы авторизации
-        if hasattr(client, 'auth'):
-            client.auth()
-        elif hasattr(client, 'login'):
-            client.login()
-        elif hasattr(client, 'send_code'):
-            client.send_code()
-        else:
-            methods = [m for m in dir(client) if not m.startswith('_')]
-            print(f"Доступные методы: {methods}")
-            raise Exception(f"Нет метода авторизации. Доступно: {methods}")
+        client.request_code()
         
         user = db.user(uid)
         user["state"] = "wait_code"
@@ -281,16 +271,7 @@ def handle_code(chat, uid, text, username, fullname):
     
     try:
         client = user["client"]
-        
-        # Пробуем разные методы подтверждения
-        if hasattr(client, 'confirm_auth'):
-            client.confirm_auth(code)
-        elif hasattr(client, 'verify'):
-            client.verify(code)
-        elif hasattr(client, 'check_code'):
-            client.check_code(code)
-        else:
-            raise Exception("Нет метода подтверждения кода")
+        client.login_with_code(code)
         
         token = client.token if hasattr(client, 'token') else f"An_{uuid.uuid4().hex}"
         viewer_id = random.randint(100000000, 999999999)
