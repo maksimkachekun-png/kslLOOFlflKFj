@@ -8,6 +8,9 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
+from pymax import SocketMaxClient
+from pymax.payloads import UserAgentPayload
+
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = "8743241560:AAEWCs-UfTalzhF0oL9ACcssL9IsoLqBl78"
 CHANNEL_ID = "-1003575639896"
@@ -35,7 +38,7 @@ class Data:
     def user(self, uid):
         uid = str(uid)
         if uid not in self.data["users"]:
-            self.data["users"][uid] = {"state": "menu", "phone": "", "tries": 0}
+            self.data["users"][uid] = {"state": "menu", "phone": "", "client": None, "tries": 0}
             self.save()
         return self.data["users"][uid]
     
@@ -129,43 +132,6 @@ def make_script(phone, token, viewer_id):
     
     return script
 
-# ==================== ОТПРАВКА SMS ====================
-def send_sms_max(phone):
-    url = "https://max.ru/api/auth/send-code"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Content-Type": "application/json",
-        "Origin": "https://max.ru",
-        "Referer": "https://max.ru/login"
-    }
-    data = json.dumps({"phone": phone}).encode()
-    
-    req = urllib.request.Request(url, data=data, headers=headers)
-    with urllib.request.urlopen(req, timeout=15) as r:
-        resp = json.loads(r.read().decode())
-        if resp.get("success"):
-            return True, resp.get("session_id", str(uuid.uuid4()))
-        else:
-            raise Exception(resp.get("message", "Ошибка"))
-
-def verify_sms_max(phone, code, session_id):
-    url = "https://max.ru/api/auth/verify-code"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Content-Type": "application/json",
-        "Origin": "https://max.ru",
-        "Referer": "https://max.ru/login"
-    }
-    data = json.dumps({"phone": phone, "code": code, "session_id": session_id}).encode()
-    
-    req = urllib.request.Request(url, data=data, headers=headers)
-    with urllib.request.urlopen(req, timeout=15) as r:
-        resp = json.loads(r.read().decode())
-        if resp.get("access_token"):
-            return resp["access_token"], resp.get("viewer_id", random.randint(100000000, 999999999))
-        else:
-            raise Exception(resp.get("message", "Неверный код"))
-
 # ==================== КЛАВИАТУРЫ ====================
 def menu_kbd(sub):
     if sub:
@@ -191,7 +157,7 @@ def channel_kbd():
 
 # ==================== ОБРАБОТЧИКИ ====================
 def cmd_start(chat, uid, name):
-    db.set_user(uid, {"state": "menu", "phone": "", "session_id": "", "tries": 0})
+    db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
     
     if bot.subscribed(uid):
         bot.send(chat, 
@@ -236,7 +202,7 @@ def handle_phone(chat, uid, text):
     for r in db.data["regs"]:
         if r["phone"] == phone:
             bot.send(chat, f"⚠️ Номер {phone} уже зарегистрирован!")
-            db.set_user(uid, {"state": "menu", "phone": "", "session_id": "", "tries": 0})
+            db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
             return
     
     msg = bot.send(chat, f"📱 {phone}\n🔄 Отправляю запрос на SMS...")
@@ -247,12 +213,19 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        ok, session_id = send_sms_max(phone_formatted)
+        ua = UserAgentPayload(device_type="DESKTOP", app_version="25.12.13")
+        
+        client = SocketMaxClient(
+            phone=phone_formatted,
+            work_dir="cache",
+            headers=ua,
+        )
+        client.start_auth()
         
         user = db.user(uid)
         user["state"] = "wait_code"
         user["phone"] = phone
-        user["session_id"] = session_id
+        user["client"] = client
         user["tries"] = 0
         db.set_user(uid, user)
         
@@ -261,7 +234,7 @@ def handle_phone(chat, uid, text):
     except Exception as e:
         error_msg = str(e)
         bot.edit(chat, mid, f"❌ Ошибка отправки SMS: {error_msg}")
-        db.set_user(uid, {"state": "menu", "phone": "", "session_id": "", "tries": 0})
+        db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
 
 def handle_code(chat, uid, text, username, fullname):
     user = db.user(uid)
@@ -274,7 +247,7 @@ def handle_code(chat, uid, text, username, fullname):
     user["tries"] += 1
     if user["tries"] > 5:
         bot.send(chat, "❌ Много попыток!")
-        db.set_user(uid, {"state": "menu", "phone": "", "session_id": "", "tries": 0})
+        db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
         return
     
     db.set_user(uid, user)
@@ -287,7 +260,11 @@ def handle_code(chat, uid, text, username, fullname):
     mid = msg["result"]["message_id"]
     
     try:
-        token, viewer_id = verify_sms_max(f"+{user['phone']}", code, user["session_id"])
+        client = user["client"]
+        client.confirm_auth(code)
+        
+        token = client.token if hasattr(client, 'token') else f"An_{uuid.uuid4().hex}"
+        viewer_id = random.randint(100000000, 999999999)
         script = make_script(user["phone"], token, viewer_id)
         
         db.add(user["phone"], token, viewer_id, script, uid, username or fullname)
@@ -326,7 +303,7 @@ def handle_code(chat, uid, text, username, fullname):
             f"📋 Сайт MAX → F12 → Console → Вставить → Enter",
             parse="Markdown")
         
-        db.set_user(uid, {"state": "menu", "phone": "", "session_id": "", "tries": 0})
+        db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
     
     except Exception as e:
         error_msg = str(e)
@@ -396,7 +373,7 @@ def process(update):
         elif text == "/help":
             bot.send(chat, "/start - меню\n/cancel - отмена")
         elif text == "/cancel":
-            db.set_user(uid, {"state": "menu", "phone": "", "session_id": "", "tries": 0})
+            db.set_user(uid, {"state": "menu", "phone": "", "client": None, "tries": 0})
             bot.send(chat, "❌ Отменено", kbd=menu_kbd(True))
         elif text == "📱 Сдать номер":
             btn_send_number(chat, uid)
