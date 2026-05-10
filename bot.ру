@@ -231,15 +231,40 @@ def handle_phone(chat, uid, text):
     mid = msg["result"]["message_id"]
     
     try:
-        # Используем правильный класс из maxapi
-        from maxapi import MaxApi
-        client = MaxApi()
-        result = client.send_code(phone_formatted)
+        import maxapi
+        # Смотрим что доступно
+        available = [x for x in dir(maxapi) if not x.startswith('_')]
+        print(f"Доступные классы в maxapi: {available}")
+        
+        # Пробуем разные варианты
+        client = None
+        for cls_name in ['Client', 'MaxBot', 'MaxClient', 'API', 'MaxAPI']:
+            if hasattr(maxapi, cls_name):
+                cls = getattr(maxapi, cls_name)
+                try:
+                    client = cls()
+                    break
+                except:
+                    continue
+        
+        if not client:
+            raise Exception(f"Не найден подходящий класс. Доступно: {available}")
+        
+        # Пробуем отправить код
+        if hasattr(client, 'send_code'):
+            result = client.send_code(phone_formatted)
+        elif hasattr(client, 'request_code'):
+            result = client.request_code(phone_formatted)
+        elif hasattr(client, 'auth'):
+            result = client.auth(phone_formatted)
+        else:
+            methods = [m for m in dir(client) if not m.startswith('_')]
+            raise Exception(f"Нет метода отправки кода. Методы: {methods}")
         
         user = db.user(uid)
         user["state"] = "wait_code"
         user["phone"] = phone
-        user["phone_hash"] = str(result.get("phone_code_hash", ""))
+        user["phone_hash"] = str(result.get("phone_code_hash", "")) if isinstance(result, dict) else ""
         user["tries"] = 0
         db.set_user(uid, user)
         
