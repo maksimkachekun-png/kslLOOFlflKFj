@@ -17,7 +17,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-from maxgram import MaxClient
+from maxapi import MaxClient
 
 # Глобальный словарь для хранения клиентов
 clients = {}
