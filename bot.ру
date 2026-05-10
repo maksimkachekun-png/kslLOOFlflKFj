@@ -10,13 +10,13 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 
-# Selenium для автоматизации браузера
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = "8743241560:AAEWCs-UfTalzhF0oL9ACcssL9IsoLqBl78"
@@ -25,14 +25,7 @@ CHANNEL_LINK = "https://@rentwaxwork"
 GROUP_ID = -1003924087794
 ADMIN_ID = 8016986918
 
-# Путь к Chrome (Bthost сам установит)
-CHROME_BINARY = "/usr/bin/google-chrome"
-CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
-
-# Десктопная версия MAX
 MAX_DESKTOP_URL = "https://web.max.ru/login"
-
-# Директория для временных файлов
 TEMP_DIR = tempfile.mkdtemp(prefix="max_bot_")
 
 # ==================== ХРАНИЛИЩЕ ====================
@@ -126,17 +119,15 @@ bot = Bot(BOT_TOKEN)
 
 # ==================== SELENIUM BROWSER ====================
 def create_driver():
-    """Создает настроенный Chrome драйвер"""
+    """Создает настроенный Chrome драйвер с автоматической загрузкой"""
     options = Options()
-    options.add_argument("--headless")  # Без графического интерфейса
+    options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument(f"--user-data-dir={TEMP_DIR}")
-    options.binary_location = CHROME_BINARY
     
-    service = Service(CHROMEDRIVER_PATH)
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
@@ -146,48 +137,40 @@ def register_max_selenium(phone_formatted):
     driver = create_driver()
     
     try:
-        # Открываем страницу входа
         driver.get(MAX_DESKTOP_URL)
         time.sleep(3)
         
-        # Ищем поле для телефона
         phone_input = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='tel'], input[placeholder*='телефон'], input[placeholder*='phone']"))
         )
         phone_input.clear()
         phone_input.send_keys(phone_formatted)
         
-        # Ищем кнопку "Далее" или "Продолжить"
-        submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit'], button:contains('Далее'), button:contains('Продолжить')")
+        submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit'], button:contains('Далее')")
         submit_btn.click()
         
         time.sleep(2)
-        
         return True, "SMS отправлен", driver
         
     except Exception as e:
         driver.quit()
-        # Если Selenium не сработал — используем тестовый режим
         print(f"Selenium error: {e}")
         return True, "SMS отправлен (тестовый режим)", None
 
 def verify_code_selenium(driver, code):
     """Вводит код подтверждения"""
     try:
-        # Ищем поле для кода
         code_input = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='tel'], input[placeholder*='код'], input[placeholder*='code']"))
         )
         code_input.clear()
         code_input.send_keys(code)
         
-        # Ищем кнопку подтверждения
         submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
         submit_btn.click()
         
         time.sleep(5)
         
-        # Извлекаем токен из localStorage
         token = driver.execute_script("return localStorage.getItem('__oneme_auth');")
         if token:
             token_data = json.loads(token)
@@ -253,7 +236,6 @@ def channel_kbd():
         ]
     }
 
-# Глобальный словарь для хранения драйверов
 drivers = {}
 
 # ==================== ОБРАБОТЧИКИ ====================
