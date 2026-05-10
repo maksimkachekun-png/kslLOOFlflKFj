@@ -3,6 +3,12 @@ import sys
 
 try:
     import requests
+# Проверка содержимого maxapi
+try:
+    import maxapi
+    print("maxapi содержимое:", dir(maxapi))
+except Exception as e:
+    print(f"Ошибка импорта maxapi: {e}")
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
     import requests
